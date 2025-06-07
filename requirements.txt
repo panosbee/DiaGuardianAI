@@ -1,0 +1,22 @@
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+PyYAML>=6.0.0
+matplotlib>=3.7.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+torch>=2.0.0
+scipy>=1.10.0
+
+# Data processing
+joblib>=1.3.0
+tqdm>=4.65.0
+
+# Database
+sqlite3
+
+# Optional: For advanced features
+# streamlit>=1.28.0  # For clinical demo
+# plotly>=5.15.0     # For visualizations
+# dash>=2.14.0       # For web interface

@@ -1,0 +1,25 @@
+{
+    "state_dim": 51,
+    "action_dim": 2,
+    "action_keys_ordered": [
+        "basal_rate_u_hr",
+        "bolus_u"
+    ],
+    "learning_model_type": "mlp_regressor",
+    "model_params": {
+        "hidden_layer_sizes": [
+            128,
+            64
+        ],
+        "max_iter": 500,
+        "random_state": 42,
+        "early_stopping": true,
+        "n_iter_no_change": 10,
+        "solver": "adam",
+        "activation": "relu"
+    },
+    "is_trained": true,
+    "label_encoder_classes": null,
+    "cgm_history_len_for_features": 25,
+    "prediction_horizon_for_features": 6
+}

@@ -1,0 +1,9 @@
+{
+    "input_seq_len": 24,
+    "output_seq_len": 12,
+    "n_features": 3,
+    "hidden_units": 64,
+    "num_layers": 2,
+    "dropout_rate": 0.1,
+    "learning_rate": 0.001
+}
