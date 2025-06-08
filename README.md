@@ -752,24 +752,23 @@ For research collaborations, questions, or suggestions:
 - **Research Email**: skouras@infosphereco.com
 - **Academic Partnerships**: skouras@infosphereco.com
 
-**Citation**
+## 📌 Citation and DOI
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15619934.svg)](https://doi.org/10.5281/zenodo.15619934)
 
 If you use this framework in your research, please cite:
 
 ```bibtex
-@software{diaguardianai2024,
-  title={DiaGuardianAI: An AI-Driven Framework for Diabetes Management Research},
-  author={[Panos Skouras]},
-  year={2025},
-  url={[https://github.com/your-repo/DiaGuardianAI](https://github.com/panosbee/DiaGuardianAI/)},
-  version={1.0.0}
+@software{diaguardianai2025,
+  title = {DiaGuardianAI: An AI-Driven Framework for Diabetes Management Research},
+  author = {Skouras, Panagiotis},
+  year = {2025},
+  url = {https://github.com/panosbee/DiaGuardianAI},
+  version = {1.0.0}
 }
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15619934.svg)](https://doi.org/10.5281/zenodo.15619934)
 
-```
-
----
 
 *Last Updated: june 2025*
 *Version: 1.0.0*
 *Build Status: Research Alpha*
+
