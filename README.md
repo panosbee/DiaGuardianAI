@@ -759,11 +759,13 @@ If you use this framework in your research, please cite:
 ```bibtex
 @software{diaguardianai2024,
   title={DiaGuardianAI: An AI-Driven Framework for Diabetes Management Research},
-  author={[Your Name]},
-  year={2024},
-  url={https://github.com/your-repo/DiaGuardianAI},
+  author={[Panos Skouras]},
+  year={2025},
+  url={[https://github.com/your-repo/DiaGuardianAI](https://github.com/panosbee/DiaGuardianAI/)},
   version={1.0.0}
 }
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15619934.svg)](https://doi.org/10.5281/zenodo.15619934)
+
 ```
 
 ---
