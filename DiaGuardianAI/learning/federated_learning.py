@@ -1,6 +1,5 @@
 from .replay_buffer import ReplayBuffer
 
-
 class FederatedClient:
     """Simplified federated learning client placeholder."""
 
@@ -30,4 +29,3 @@ class FederatedClient:
         print(f"Client {self.client_id}: sharing updates with server")
         if self.server_callback:
             self.server_callback(self.model)
-
