@@ -46,6 +46,7 @@ from .diabetes_manager import DiabetesManager
 from .patient_manager import PatientManager
 from .insulin_advisor import InsulinAdvisor
 from .safety_monitor import SafetyMonitor
+from .ood_and_explanation import OODDetector, SelfExplainer
 from .data_types import (
     PatientProfile,
     InsulinRecommendation,
@@ -88,6 +89,8 @@ __all__ = [
     'PatientManager', 
     'InsulinAdvisor',
     'SafetyMonitor',
+    'OODDetector',
+    'SelfExplainer',
     'PatientProfile',
     'InsulinRecommendation',
     'SafetyAlert',

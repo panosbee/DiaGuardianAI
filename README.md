@@ -428,6 +428,25 @@ pattern_agent = PatternAdvisorAgent(
 combined_recommendation = coordinate_agents(rl_agent, pattern_agent, current_state)
 ```
 
+#### OOD Detection and Self-Explanation
+```python
+from DiaGuardianAI.sdk import OODDetector, SelfExplainer
+
+# Use OOD detector with a trained model
+detector = OODDetector(model)
+if detector.is_ood(new_data):
+    print("Warning: unfamiliar pattern detected")
+
+# Generate natural-language explanation for a recommendation
+explainer = SelfExplainer()
+explanation = explainer.explain({"trend": "rising", "meal_carbs": 45}, {
+    "bolus": 2.0,
+    "basal": 1.0,
+    "safety_level": "normal",
+})
+print(explanation)
+```
+
 ---
 
 ## Experimental Results
