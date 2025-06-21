@@ -66,10 +66,13 @@ class _MinimalGymEnv(gym.Env):
         return self.current_obs, {}
 
     def render(self):
-        pass # Placeholder
+        """Render the current observation to the console."""
+        print(f"Current observation: {self.current_obs}")
 
     def close(self):
-        pass # Placeholder
+        """Perform minimal environment cleanup."""
+        # Nothing persistent to clean up, but method provided for completeness
+        print("_MinimalGymEnv closed.")
 
 
 class RLAgent(BaseAgent):
