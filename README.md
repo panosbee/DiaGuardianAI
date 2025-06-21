@@ -18,20 +18,40 @@ DiaGuardianAI is a comprehensive research framework designed for investigating a
 
 ## Table of Contents
 
-1. [Research Motivation](#research-motivation)
-2. [System Architecture](#system-architecture)
-3. [Technical Components](#technical-components)
-4. [Machine Learning Models](#machine-learning-models)
-5. [Synthetic Patient Simulation](#synthetic-patient-simulation)
-6. [Safety Framework](#safety-framework)
-7. [Installation and Usage](#installation-and-usage)
-8. [Experimental Results](#experimental-results)
-9. [Limitations and Future Work](#limitations-and-future-work)
-10. [Ethical Considerations](#ethical-considerations)
-11. [Contributing to Research](#contributing-to-research)
-12. [References](#references)
+1. [Recent Updates](#recent-updates-june-2025)
+2. [Research Motivation](#research-motivation)
+3. [System Architecture](#system-architecture)
+4. [Technical Components](#technical-components)
+5. [Machine Learning Models](#machine-learning-models)
+6. [Synthetic Patient Simulation](#synthetic-patient-simulation)
+7. [Safety Framework](#safety-framework)
+8. [Installation and Usage](#installation-and-usage)
+9. [Experimental Results](#experimental-results)
+10. [Limitations and Future Work](#limitations-and-future-work)
+11. [Ethical Considerations](#ethical-considerations)
+12. [Contributing to Research](#contributing-to-research)
+13. [References](#references)
 
 ---
+
+## Recent Updates (June 2025)
+
+DiaGuardianAI now includes several learning utilities to enable more adaptive and
+robust experimentation:
+
+- **Meta-Learning Adapter**: the new `MetaLearner` class performs lightweight on-device
+  fine-tuning, allowing fast personalization of models for each patient.
+- **Federated Learning Support**: a `FederatedClient` stores local experiences in a
+  `ReplayBuffer` and periodically shares updates with a central server, enabling
+  privacy-preserving collaboration across deployments.
+- **Continual Training**: the replay buffer is sampled to avoid catastrophic
+  forgetting during local updates.
+- **Out-of-Distribution Detection**: `SimpleOODDetector` outputs a probability that an
+  observation is unfamiliar, providing early warnings when the agent encounters
+  unseen patterns.
+- **Improved Agent Utilities**: `RLAgent.render()` shows the latest observation and
+  `RLAgent.close()` safely cleans up environment resources.
+
 
 ## Research Motivation
 
