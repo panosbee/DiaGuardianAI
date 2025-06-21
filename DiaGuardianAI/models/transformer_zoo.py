@@ -16,6 +16,8 @@ from sklearn.linear_model import Ridge
 import warnings
 warnings.filterwarnings('ignore')
 
+from ..utils.metrics import calculate_rmse
+
 class BasePredictor(ABC):
     """Base class for all prediction models in the zoo."""
     
@@ -494,5 +496,37 @@ class TransformerZoo:
         
         for name, model in self.models.items():
             status["model_status"][name] = model.get_model_info()
-        
+
         return status
+
+    def evaluate_all_models(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+    ) -> Dict[str, Dict[int, float]]:
+        """Evaluate all trained models using RMSE for each horizon."""
+
+        results: Dict[str, Dict[int, float]] = {}
+
+        for name, model in self.models.items():
+            if not model.is_trained:
+                continue
+
+            try:
+                preds = []
+                for i in range(len(X)):
+                    horizon_preds = model.predict_multi_horizon(X[i].reshape(1, -1))
+                    preds.append([horizon_preds[h] for h in self.prediction_horizons])
+
+                preds_arr = np.array(preds)
+                model_results: Dict[int, float] = {}
+                for idx, horizon in enumerate(self.prediction_horizons):
+                    model_results[horizon] = calculate_rmse(y[:, idx], preds_arr[:, idx])
+
+                results[name] = model_results
+
+            except Exception as e:
+                print(f"Evaluation error for {name}: {e}")
+                results[name] = {}
+
+        return results
