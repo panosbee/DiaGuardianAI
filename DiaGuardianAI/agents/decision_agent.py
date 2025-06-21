@@ -25,6 +25,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv # For creating a dummy 
 # Imports for __main__ testing will be moved into the __main__ block
 # from DiaGuardianAI.agents.pattern_advisor_agent import PatternAdvisorAgent # Moved
 from DiaGuardianAI.pattern_repository.repository_manager import RepositoryManager
+from DiaGuardianAI.learning import MetaLearner, FederatedClient, SimpleOODDetector
 
 
 # Minimal Gym Environment for SB3 compatibility
@@ -114,6 +115,11 @@ class RLAgent(BaseAgent):
 
        self._setup_gym_spaces()
        self._initialize_rl_model()
+
+       # Initialize advanced learning helpers
+       self.meta_learner = MetaLearner(self.rl_model, algorithm="maml")
+       self.federated_client = FederatedClient(self.rl_model, client_id="rl_agent")
+       self.ood_detector = SimpleOODDetector()
 
        print(
            f"RLAgent initialized with algorithm: {self.rl_algorithm_name}, "
@@ -489,7 +495,11 @@ class RLAgent(BaseAgent):
             meal_probability=meal_probability_val,
             estimated_meal_carbs_g=estimated_meal_carbs_g_val
         )
-        
+
+        # Simple out-of-distribution check
+        if self.ood_detector and self.ood_detector.is_ood(state_vector):
+            print("\u26a0\ufe0f RLAgent: out-of-distribution state detected")
+
         # 3. Decide final action: Use advisor's suggestion or RL model's output
         final_action_dict: Dict[str, float] = {}
         use_advisor_action = False
@@ -608,6 +618,13 @@ class RLAgent(BaseAgent):
             print("RLAgent: No RL model initialized. Cannot train.")
         else: # self.rl_model exists but doesn't have 'learn'
              print(f"RLAgent: RL model ({type(self.rl_model)}) does not have a 'learn' method. Cannot train.")
+
+    def personalize(self, support_data, query_data=None):
+        """Run a lightweight meta-learning adaptation step."""
+        if self.meta_learner and self.rl_model:
+            self.rl_model = self.meta_learner.adapt(support_data, query_data)
+        else:
+            print("RLAgent: MetaLearner not initialized; skipping personalization.")
 
     def save(self, path: str):
         """Saves the agent's learned RL model. (Placeholder)"""
