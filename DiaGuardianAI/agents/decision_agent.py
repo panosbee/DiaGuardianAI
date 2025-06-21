@@ -118,8 +118,9 @@ class RLAgent(BaseAgent):
 
        # Initialize advanced learning helpers
        self.meta_learner = MetaLearner(self.rl_model, algorithm="maml")
-       self.federated_client = FederatedClient(self.rl_model, client_id="rl_agent")
+       self.federated_client = FederatedClient(self.rl_model, client_id="rl_agent", buffer_capacity=1000)
        self.ood_detector = SimpleOODDetector()
+       self.latest_obs: Optional[np.ndarray] = None
 
        print(
            f"RLAgent initialized with algorithm: {self.rl_algorithm_name}, "
@@ -496,6 +497,9 @@ class RLAgent(BaseAgent):
             estimated_meal_carbs_g=estimated_meal_carbs_g_val
         )
 
+        # Store latest observation for rendering/debugging
+        self.latest_obs = state_vector
+
         # Simple out-of-distribution check
         if self.ood_detector and self.ood_detector.is_ood(state_vector):
             print("\u26a0\ufe0f RLAgent: out-of-distribution state detected")
@@ -669,6 +673,38 @@ class RLAgent(BaseAgent):
                 self.rl_model = None # Ensure model is None if loading fails
         else:
             print(f"RLAgent: Loading not implemented for algorithm '{self.rl_algorithm_name}'.")
+
+    def store_experience(self, experience: Any) -> None:
+        """Add an experience tuple to the local replay buffer."""
+        if self.federated_client:
+            self.federated_client.replay_buffer.add(experience)
+
+    def continual_train_step(self, batch_size: int = 32) -> None:
+        """Trigger a continual learning update from the replay buffer."""
+        if self.federated_client:
+            self.federated_client.continual_update(batch_size)
+
+    def federated_round(self, data) -> None:
+        """Run a simple federated learning round with local data."""
+        if self.federated_client:
+            self.federated_client.train_local(data)
+            self.federated_client.continual_update()
+            self.federated_client.share_updates()
+
+    def render(self) -> None:
+        """Minimal render showing the latest observation."""
+        if self.latest_obs is not None:
+            print(f"RLAgent: latest observation {self.latest_obs}")
+        else:
+            print("RLAgent: no observation available to render")
+
+    def close(self) -> None:
+        """Clean up any resources associated with the RL model."""
+        if self.rl_model and hasattr(self.rl_model, 'env') and hasattr(self.rl_model.env, 'close'):
+            try:
+                self.rl_model.env.close()
+            except Exception as e:
+                print(f"RLAgent: error closing environment: {e}")
 
 if __name__ == '__main__':
     # Moved imports for __main__ block to resolve circular dependencies
