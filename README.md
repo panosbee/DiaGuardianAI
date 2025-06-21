@@ -388,8 +388,14 @@ model = LSTMPredictor(
 )
 
 # Train on synthetic data
-trainer = ModelTrainer(model=model)
-trainer.train_model(X_train, y_train, epochs=100, batch_size=32)
+from DiaGuardianAI.predictive_models import TrainingParams
+
+# Configure and train the model
+trainer = ModelTrainer(
+    model=model,
+    training_params=TrainingParams(epochs=100, batch_size=32),
+)
+trainer.train_model(X_train, y_train)
 
 # Evaluate uncertainty quantification
 predictions = model.predict(test_sequence)

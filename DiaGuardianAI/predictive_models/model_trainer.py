@@ -3,7 +3,7 @@
 
 import sys
 import os
-from typing import Dict, Any, Tuple, Optional, List, cast # Ensure cast is here
+from typing import Dict, Any, Tuple, Optional, List, cast, Union
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -20,6 +20,7 @@ if __package__ is None or __package__ == '':
 
 from DiaGuardianAI.core.base_classes import BasePredictiveModel
 from DiaGuardianAI.data_generation.data_formatter import DataFormatter
+from DiaGuardianAI.predictive_models.training_config import TrainingParams
 # Removed duplicated imports that are now at the top
 
 
@@ -27,15 +28,16 @@ class ModelTrainer:
     """Handles training, cross-validation, and hyperparameter tuning for PyTorch models."""
     def __init__(self, model: BasePredictiveModel, # Expects model to have a .model attribute which is nn.Module
                  data_formatter: Optional[DataFormatter] = None,
-                 training_params: Optional[Dict[str, Any]] = None):
+                 training_params: Optional[Union[TrainingParams, Dict[str, Any]]] = None):
         """Initializes the ModelTrainer.
         Args:
             model (BasePredictiveModel): The predictive model instance.
                                        Must have a `model` attribute that is an `nn.Module`
                                        and a `device` attribute.
             data_formatter (Optional[DataFormatter]): DataFormatter instance.
-            training_params (Optional[Dict[str, Any]]): Training parameters like
-                `{"epochs": 100, "batch_size": 32, "learning_rate": 0.001}`.
+            training_params (Optional[Union[TrainingParams, Dict[str, Any]]]):
+                Training parameters as a :class:`TrainingParams` instance or
+                dictionary of overrides.
         """
         # Runtime checks for essential attributes expected from concrete PyTorch-based models
         if not hasattr(model, 'model') or not isinstance(getattr(model, 'model'), nn.Module):
@@ -49,7 +51,10 @@ class ModelTrainer:
         self.pytorch_model: nn.Module = getattr(model, 'model')
         self.device: torch.device = getattr(model, 'device')
         self.data_formatter: Optional[DataFormatter] = data_formatter
-        self.training_params: Dict[str, Any] = training_params if training_params else {}
+        if isinstance(training_params, dict):
+            self.training_params = TrainingParams(**training_params)
+        else:
+            self.training_params = training_params or TrainingParams()
         self.training_history: List[Dict[str, Any]] = []
 
         print(
@@ -66,9 +71,9 @@ class ModelTrainer:
         Returns:
             Dict[str, Any]: Training status and history.
         """
-        epochs = self.training_params.get("epochs", 10)
-        batch_size = self.training_params.get("batch_size", 32)
-        learning_rate = self.training_params.get("learning_rate", 0.001)
+        epochs = self.training_params.epochs
+        batch_size = self.training_params.batch_size
+        learning_rate = self.training_params.learning_rate
 
         if not isinstance(X_train, torch.Tensor): X_train = torch.tensor(X_train, dtype=torch.float32)
         if not isinstance(y_train, torch.Tensor): y_train = torch.tensor(y_train, dtype=torch.float32)
@@ -150,7 +155,11 @@ class ModelTrainer:
         if not isinstance(X, np.ndarray): X = np.array(X)
         if not isinstance(y, np.ndarray): y = np.array(y)
 
-        kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.training_params.get("random_state", None))
+        kf = KFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=self.training_params.random_state,
+        )
         fold_scores_mse = []
 
         # Store original model's init parameters to re-instantiate for each fold
@@ -293,8 +302,8 @@ class ModelTrainer:
             #     }
             # }
             
-            trial_model_init_args = {} # For model re-instantiation
-            trial_training_params = self.training_params.copy() # Start with base training params
+            trial_model_init_args = {}  # For model re-instantiation
+            trial_training_params = self.training_params.to_dict()
 
             # Populate model init args from search_space["model_params"]
             if "model_params" in search_space:
@@ -412,14 +421,14 @@ class ModelTrainer:
             print("Warning: Model has not been trained yet. Consider initial training first.")
             # Or, could call self.train_model here if that's desired behavior.
 
-        effective_params = self.training_params.copy() # Start with original params
+        effective_params = self.training_params.to_dict()
         if fine_tuning_params:
             effective_params.update(fine_tuning_params)
         
         # Typically, fine-tuning uses a smaller learning rate and fewer epochs.
-        epochs = effective_params.get("epochs", 5) # Default to fewer epochs for fine-tuning
-        batch_size = effective_params.get("batch_size", self.training_params.get("batch_size", 32))
-        learning_rate = effective_params.get("learning_rate", self.training_params.get("learning_rate", 0.001) / 10) # Default to smaller LR
+        epochs = effective_params.get("epochs", 5)
+        batch_size = effective_params.get("batch_size", self.training_params.batch_size)
+        learning_rate = effective_params.get("learning_rate", self.training_params.learning_rate / 10)
 
         print(
             f"Starting continuous fine-tuning with new data "
@@ -558,8 +567,14 @@ if __name__ == '__main__':
 
     dummy_input_features = 10
     dummy_output_horizon = 1 # For simplicity in dummy model's predict
-    dummy_model_instance = DummyTrainableModel(input_features=dummy_input_features, output_horizon_steps=dummy_output_horizon)
-    trainer = ModelTrainer(model=dummy_model_instance, training_params={"epochs": 2, "lr": 0.01})
+    dummy_model_instance = DummyTrainableModel(
+        input_features=dummy_input_features,
+        output_horizon_steps=dummy_output_horizon,
+    )
+    trainer = ModelTrainer(
+        model=dummy_model_instance,
+        training_params=TrainingParams(epochs=2, learning_rate=0.01),
+    )
 
     # Dummy data
     X_dummy = np.random.rand(100, 10)  # 100 samples, 10 features
@@ -597,7 +612,7 @@ if __name__ == '__main__':
     
     fine_tune_params = {
         "epochs": 3, # Fewer epochs for fine-tuning
-        "learning_rate": trainer.training_params.get("learning_rate", 0.001) / 20, # Much smaller LR
+        "learning_rate": trainer.training_params.learning_rate / 20,  # Much smaller LR
         "batch_size": 16
     }
     fine_tune_results_history = trainer.continuous_fine_tuning(X_new_dummy, y_new_dummy, fine_tuning_params=fine_tune_params)

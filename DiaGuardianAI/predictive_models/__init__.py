@@ -20,3 +20,4 @@ from .model_trainer import ModelTrainer
 from .model_zoo import LSTMPredictor # model_zoo now exports these
 from .model_zoo import TransformerPredictor
 from .model_zoo import EnsemblePredictor
+from .training_config import TrainingParams
