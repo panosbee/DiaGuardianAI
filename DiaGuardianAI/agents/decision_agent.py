@@ -25,6 +25,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv # For creating a dummy 
 # Imports for __main__ testing will be moved into the __main__ block
 # from DiaGuardianAI.agents.pattern_advisor_agent import PatternAdvisorAgent # Moved
 from DiaGuardianAI.pattern_repository.repository_manager import RepositoryManager
+from DiaGuardianAI.learning import MetaLearner, FederatedClient, SimpleOODDetector
 
 
 # Minimal Gym Environment for SB3 compatibility
@@ -66,10 +67,13 @@ class _MinimalGymEnv(gym.Env):
         return self.current_obs, {}
 
     def render(self):
-        pass # Placeholder
+        """Render the current observation to the console."""
+        print(f"Current observation: {self.current_obs}")
 
     def close(self):
-        pass # Placeholder
+        """Perform minimal environment cleanup."""
+        # Nothing persistent to clean up, but method provided for completeness
+        print("_MinimalGymEnv closed.")
 
 
 class RLAgent(BaseAgent):
@@ -111,6 +115,12 @@ class RLAgent(BaseAgent):
 
        self._setup_gym_spaces()
        self._initialize_rl_model()
+
+       # Initialize advanced learning helpers
+       self.meta_learner = MetaLearner(self.rl_model, algorithm="maml")
+       self.federated_client = FederatedClient(self.rl_model, client_id="rl_agent", buffer_capacity=1000)
+       self.ood_detector = SimpleOODDetector()
+       self.latest_obs: Optional[np.ndarray] = None
 
        print(
            f"RLAgent initialized with algorithm: {self.rl_algorithm_name}, "
@@ -486,7 +496,19 @@ class RLAgent(BaseAgent):
             meal_probability=meal_probability_val,
             estimated_meal_carbs_g=estimated_meal_carbs_g_val
         )
-        
+
+        # Store latest observation for rendering/debugging
+        self.latest_obs = state_vector
+
+        # Simple out-of-distribution check with probability
+        ood_prob = None
+        if self.ood_detector:
+            ood_prob = self.ood_detector.probability_ood(state_vector)
+            if ood_prob > 0.5:
+                print(
+                    f"\u26a0\ufe0f RLAgent: out-of-distribution probability {ood_prob:.2f}"
+                )
+
         # 3. Decide final action: Use advisor's suggestion or RL model's output
         final_action_dict: Dict[str, float] = {}
         use_advisor_action = False
@@ -606,6 +628,13 @@ class RLAgent(BaseAgent):
         else: # self.rl_model exists but doesn't have 'learn'
              print(f"RLAgent: RL model ({type(self.rl_model)}) does not have a 'learn' method. Cannot train.")
 
+    def personalize(self, support_data, query_data=None):
+        """Run a lightweight meta-learning adaptation step."""
+        if self.meta_learner and self.rl_model:
+            self.rl_model = self.meta_learner.adapt(support_data, query_data)
+        else:
+            print("RLAgent: MetaLearner not initialized; skipping personalization.")
+
     def save(self, path: str):
         """Saves the agent's learned RL model. (Placeholder)"""
         if self.rl_model and hasattr(self.rl_model, 'save'):
@@ -649,6 +678,38 @@ class RLAgent(BaseAgent):
                 self.rl_model = None # Ensure model is None if loading fails
         else:
             print(f"RLAgent: Loading not implemented for algorithm '{self.rl_algorithm_name}'.")
+
+    def store_experience(self, experience: Any) -> None:
+        """Add an experience tuple to the local replay buffer."""
+        if self.federated_client:
+            self.federated_client.replay_buffer.add(experience)
+
+    def continual_train_step(self, batch_size: int = 32) -> None:
+        """Trigger a continual learning update from the replay buffer."""
+        if self.federated_client:
+            self.federated_client.continual_update(batch_size)
+
+    def federated_round(self, data) -> None:
+        """Run a simple federated learning round with local data."""
+        if self.federated_client:
+            self.federated_client.train_local(data)
+            self.federated_client.continual_update()
+            self.federated_client.share_updates()
+
+    def render(self) -> None:
+        """Minimal render showing the latest observation."""
+        if self.latest_obs is not None:
+            print(f"RLAgent: latest observation {self.latest_obs}")
+        else:
+            print("RLAgent: no observation available to render")
+
+    def close(self) -> None:
+        """Clean up any resources associated with the RL model."""
+        if self.rl_model and hasattr(self.rl_model, 'env') and hasattr(self.rl_model.env, 'close'):
+            try:
+                self.rl_model.env.close()
+            except Exception as e:
+                print(f"RLAgent: error closing environment: {e}")
 
 if __name__ == '__main__':
     # Moved imports for __main__ block to resolve circular dependencies

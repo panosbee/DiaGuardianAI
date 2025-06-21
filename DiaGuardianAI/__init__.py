@@ -36,6 +36,7 @@ from .models.transformer_zoo import TransformerZoo
 from .agents.advanced_multi_agent_system import ContinuousLearningLoop
 from .pattern_repository.repository_manager import RepositoryManager
 from .core.intelligent_meal_system import IntelligentMealSystem
+from .learning import MetaLearner, FederatedClient, SimpleOODDetector, ReplayBuffer
 
 # Main API class
 class DiaGuardianAI:
@@ -95,6 +96,10 @@ __all__ = [
     "ContinuousLearningLoop",
     "RepositoryManager",
     "IntelligentMealSystem",
+    "MetaLearner",
+    "FederatedClient",
+    "SimpleOODDetector",
+    "ReplayBuffer",
 
     # Metadata
     "__version__",
