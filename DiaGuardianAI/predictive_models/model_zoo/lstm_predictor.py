@@ -80,6 +80,7 @@ class LSTMPredictor(BasePredictiveModel):
         self.scaler_X: Optional[MinMaxScaler] = None # Scaler for input features
         self.scaler_y: Optional[MinMaxScaler] = None # Scaler for target (CGM)
         self.is_trained: bool = False
+        self.training_history: List[Dict[str, float]] = []
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self._build_model()
@@ -237,9 +238,27 @@ class LSTMPredictor(BasePredictiveModel):
         X_train_tensor = torch.from_numpy(X_train_all).float().to(self.device)
         y_train_tensor = torch.from_numpy(y_train_all).float().to(self.device)
 
-        # Create DataLoader
+        # Create DataLoader for training
         train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        # Prepare validation DataLoader if validation data is provided
+        val_loader = None
+        if validation_data:
+            all_X_val_list = []
+            all_y_val_list = []
+            for df in validation_data:
+                X_val_seq, y_val_seq = self._prepare_data_for_lstm(df, fit_scalers=False)
+                if X_val_seq is not None and X_val_seq.size > 0 and y_val_seq is not None and y_val_seq.size > 0:
+                    all_X_val_list.append(X_val_seq)
+                    all_y_val_list.append(y_val_seq)
+            if all_X_val_list:
+                X_val_all = np.concatenate(all_X_val_list, axis=0)
+                y_val_all = np.concatenate(all_y_val_list, axis=0)
+                X_val_tensor = torch.from_numpy(X_val_all).float().to(self.device)
+                y_val_tensor = torch.from_numpy(y_val_all).float().to(self.device)
+                val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+                val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
         # Optimizer and Loss Function
         if self.model is None: # Should have been built by now
@@ -257,28 +276,37 @@ class LSTMPredictor(BasePredictiveModel):
             epoch_loss = 0.0
             for batch_X, batch_y in train_loader:
                 optimizer.zero_grad()
-                
+
                 # Forward pass
                 outputs = self.model(batch_X)
                 loss = criterion(outputs, batch_y)
-                
+
                 # Backward pass and optimize
                 loss.backward()
                 optimizer.step()
-                
-                epoch_loss += loss.item()
-            
-            avg_epoch_loss = epoch_loss / len(train_loader)
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_epoch_loss:.4f}")
 
-            # Placeholder for validation loop if validation_data is provided
-            if validation_data:
-                # self.model.eval()
-                # with torch.no_grad():
-                #     # Process validation_data, make predictions, calculate validation loss
-                # self.model.train() # Set back to training mode
-                pass
-        
+                epoch_loss += loss.item()
+
+            avg_epoch_loss = epoch_loss / len(train_loader)
+
+            log_message = f"Epoch [{epoch+1}/{epochs}], Train Loss: {avg_epoch_loss:.4f}"
+            avg_val_loss = None
+            if val_loader is not None:
+                self.model.eval()
+                val_loss_total = 0.0
+                with torch.no_grad():
+                    for batch_X_val, batch_y_val in val_loader:
+                        val_outputs = self.model(batch_X_val)
+                        v_loss = criterion(val_outputs, batch_y_val)
+                        val_loss_total += v_loss.item()
+                avg_val_loss = val_loss_total / len(val_loader)
+                log_message += f", Val Loss: {avg_val_loss:.4f}"
+                self.model.train()
+
+            self.training_history.append({"epoch": epoch + 1, "train_loss": avg_epoch_loss, "val_loss": avg_val_loss})
+
+            print(log_message)
+
         self.is_trained = True
         print("LSTM training finished.")
 
