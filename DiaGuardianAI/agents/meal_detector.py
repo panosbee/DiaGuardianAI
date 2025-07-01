@@ -152,18 +152,13 @@ class MealDetector:
         if self.detection_method == "rule_based":
             return self._detect_meal_rule_based(cgm_history, timestamps)
         elif self.detection_method == "ml_based":
-            if self.ml_model is None:  # Explicitly check for None
-                print(
-                    "MealDetector (ml_based): ML model not initialized. Returning no detection."
-                )
+            if self.ml_model is None:
+                # Model was never provided
                 return 0.0, None, None
 
-            # Check if the model is fitted. For RandomForestClassifier, 'estimators_' is a good indicator.
-            # However, to be more general for sklearn estimators, we can check for 'is_fitted()',
-            # or for attributes that are set after fitting.
-            # A common way for sklearn is to check for an attribute like `classes_` or `n_features_in_`.
-            # For now, let's assume if it's not None, we try to use it, and errors during predict_proba
-            # will indicate it's not trained. The AttributeError catch handles this.
+            # Ensure the model has been fitted before attempting a prediction
+            if not hasattr(self.ml_model, "classes_"):
+                return 0.0, None, None
 
             features = self._extract_features_for_ml(
                 cgm_history, timestamps, other_features
@@ -176,23 +171,8 @@ class MealDetector:
                 )
                 return 0.0, None, None
 
-            try:
-                # Assuming the model is trained and has predict_proba
-                # Reshape features to (1, n_features) for a single sample
-                probabilities = self.ml_model.predict_proba(features.reshape(1, -1))[0]
-                meal_probability = float(probabilities[1])  # Assuming class 1 is "meal"
-            except (
-                AttributeError
-            ):  # Model might not be trained yet or doesn't have predict_proba
-                print(
-                    "MealDetector (ml_based): Model not trained or lacks predict_proba. Using placeholder probability."
-                )
-                meal_probability = np.random.rand()  # Placeholder if not trained
-            except Exception as e:
-                print(
-                    f"MealDetector (ml_based): Error during prediction: {e}. Using placeholder probability."
-                )
-                meal_probability = np.random.rand()  # Placeholder
+            probabilities = self.ml_model.predict_proba(features.reshape(1, -1))[0]
+            meal_probability = float(probabilities[1])  # class 1 = meal
 
             detection_threshold = self.params.get("ml_detection_threshold", 0.5)
             if meal_probability > detection_threshold:
@@ -455,6 +435,36 @@ class MealDetector:
                 "MealDetector: Training is only applicable for 'ml_based' "
                 "detection method."
             )
+
+    def predict_meal_probability(
+        self,
+        cgm_history: List[float],
+        timestamps: Optional[List[Any]] = None,
+        other_features: Optional[Dict[str, Any]] = None,
+    ) -> float:
+        """Predicts the probability that a meal is occurring.
+
+        Args:
+            cgm_history: Recent CGM readings.
+            timestamps: Optional timestamps for the readings.
+            other_features: Additional contextual numeric features.
+
+        Returns:
+            float: Probability of a meal event. Returns 0.0 if the model is not trained.
+        """
+
+        if self.detection_method != "ml_based":
+            raise ValueError("predict_meal_probability requires ml_based detector")
+
+        if self.ml_model is None or not hasattr(self.ml_model, "classes_"):
+            return 0.0
+
+        features = self._extract_features_for_ml(cgm_history, timestamps, other_features)
+        if features is None or len(features) == 0:
+            return 0.0
+
+        probabilities = self.ml_model.predict_proba(features.reshape(1, -1))[0]
+        return float(probabilities[1])
 
     def save_model(self, path: str):
         """Saves the trained ML model. (Placeholder)
