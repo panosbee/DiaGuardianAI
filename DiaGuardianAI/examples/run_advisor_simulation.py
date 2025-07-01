@@ -105,11 +105,11 @@ def load_trained_pattern_advisor(
             model_path=model_path,
             pattern_repository=dummy_repository
         )
-        if advisor.model is None and advisor.learning_model_type not in ["none", "meta_rl"]:
+        if advisor.model is None and advisor.learning_model_type != "none":
             print(f"Warning: Advisor model object is None after loading, attempting to build for type {advisor.learning_model_type}")
             advisor._build_model()
 
-        if advisor.model is None and advisor.learning_model_type not in ["none", "meta_rl"]:
+        if advisor.model is None and advisor.learning_model_type != "none":
             print(f"ERROR: Advisor model is still None after attempting to build. Type: {advisor.learning_model_type}")
             return None
 

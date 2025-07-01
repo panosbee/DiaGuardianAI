@@ -134,8 +134,6 @@ class PatternAdvisorAgent(BaseAgent):
             print(
                 f"PatternAdvisorAgent: Initialized RandomForestClassifier and LabelEncoder for supervised classification with params: {self.model_params}."
             )
-        elif self.learning_model_type == "meta_rl":
-            print("PatternAdvisorAgent: Meta-RL model initialization is a placeholder.")
         elif self.learning_model_type == "none":
             print(
                 "PatternAdvisorAgent: Initialized with no internal learning model (retrieval only)."
@@ -144,7 +142,7 @@ class PatternAdvisorAgent(BaseAgent):
             raise ValueError(
                 f"Unsupported learning_model_type for PatternAdvisorAgent: "
                 f"{self.learning_model_type}. Supported: 'mlp_regressor', "
-                f"'gradient_boosting_regressor', 'supervised_classifier', 'meta_rl', 'none'."
+                f"'gradient_boosting_regressor', 'supervised_classifier', 'none'."
             )
         # self.state_dim is inherited from BaseAgent and set in super().__init__
 
@@ -184,7 +182,7 @@ class PatternAdvisorAgent(BaseAgent):
                 self.model = RandomForestClassifier(**self.model_params)
                 print("PatternAdvisorAgent: Built RandomForestClassifier (was None).")
         else:
-            # For "none" or "meta_rl" (placeholder), no scikit-learn model is built here.
+            # For "none" type, no scikit-learn model is built here.
             print(
                 f"PatternAdvisorAgent: No scikit-learn model to build for type '{self.learning_model_type}'."
             )
@@ -1078,18 +1076,12 @@ class PatternAdvisorAgent(BaseAgent):
             # Allow saving if model is built but not trained (e.g. for a "none" type or pre-configured but untrained)
             # However, for typical use, we expect a trained model.
             # Let's be strict for now for trainable models.
-            if self.learning_model_type not in [
-                "none",
-                "meta_rl",
-            ]:  # meta_rl is placeholder
+            if self.learning_model_type != "none":
                 print(
                     f"PatternAdvisorAgent: Model (type: {self.learning_model_type}) is not trained. Saving may be incomplete or fail."
                 )
                 # raise RuntimeError("PatternAdvisorAgent: Cannot save an untrained model unless it's a non-trainable type.")
-            elif self.model is None and self.learning_model_type not in [
-                "none",
-                "meta_rl",
-            ]:
+            elif self.model is None and self.learning_model_type != "none":
                 raise RuntimeError(
                     f"PatternAdvisorAgent: Model (type: {self.learning_model_type}) is None. Cannot save."
                 )
@@ -1215,10 +1207,7 @@ class PatternAdvisorAgent(BaseAgent):
 
         # Build the model structure (e.g., MLPRegressor object)
         # _build_model will use agent.model_params and agent.learning_model_type
-        if agent.learning_model_type not in [
-            "none",
-            "meta_rl",
-        ]:  # Only build if it's a type that has a model
+        if agent.learning_model_type != "none":
             agent._build_model()  # This creates the model object, e.g., an untrained MLPRegressor
 
         # Load the trained model weights/state if model file exists and type is learnable
