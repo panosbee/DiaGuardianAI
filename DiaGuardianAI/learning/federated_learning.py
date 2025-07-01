@@ -1,3 +1,7 @@
+"""Basic Federated Learning client utilities."""
+
+from typing import Iterable, Tuple, Any, Callable, Optional
+
 from .replay_buffer import ReplayBuffer
 
 class FederatedClient:
@@ -9,23 +13,51 @@ class FederatedClient:
         self.server_callback = server_callback
         self.replay_buffer = ReplayBuffer(buffer_capacity)
 
-    def train_local(self, data):
-        """Simulate local training on the client's data."""
+    def _update_model(self, batch: Iterable[Tuple[Any, Any]]) -> None:
+        """Apply a training step on the underlying model."""
+        if not batch:
+            return
+
+        features, targets = zip(*batch)
+        X = list(features)
+        y = list(targets)
+
+        if hasattr(self.model, "partial_fit"):
+            self.model.partial_fit(X, y)
+        elif hasattr(self.model, "fit"):
+            self.model.fit(X, y)
+        elif hasattr(self.model, "update"):
+            self.model.update(list(batch))
+        elif hasattr(self.model, "train_step"):
+            self.model.train_step(list(batch))
+        else:
+            print(f"Client {self.client_id}: Model does not support training methods")
+
+    def train_local(self, data: Iterable[Tuple[Any, Any]]) -> None:
+        """Perform local training on provided data and store in the buffer."""
         for sample in data:
             self.replay_buffer.add(sample)
-        print(f"Client {self.client_id}: replay buffer size {len(self.replay_buffer)}")
-        # Actual gradient updates would normally occur here.
+
+        self._update_model(list(data))
+        print(
+            f"Client {self.client_id}: replay buffer size {len(self.replay_buffer)}"
+        )
 
     def continual_update(self, batch_size: int = 32):
         """Train the local model using a sample from the replay buffer."""
         batch = self.replay_buffer.sample(batch_size)
         if not batch:
             return
-        print(f"Client {self.client_id}: training on batch of {len(batch)} samples")
-        # Placeholder: the model would be updated using `batch` here.
+        self._update_model(batch)
+        print(
+            f"Client {self.client_id}: training on batch of {len(batch)} samples"
+        )
 
     def share_updates(self):
         """Send model updates back to the server."""
         print(f"Client {self.client_id}: sharing updates with server")
         if self.server_callback:
-            self.server_callback(self.model)
+            updated_model = self.server_callback(self.model)
+            if updated_model is not None:
+                self.model = updated_model
+
