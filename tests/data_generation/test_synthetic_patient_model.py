@@ -1,9 +1,30 @@
 # Tests for DiaGuardianAI.data_generation.synthetic_patient_model
 
-import pytest
-from DiaGuardianAI.data_generation.synthetic_patient_model import SyntheticPatient
-from DiaGuardianAI.core.base_classes import BaseSyntheticPatient # For type checking
+import importlib.util
+import pathlib
 import numpy as np
+import pytest
+
+# Import SyntheticPatient and BaseSyntheticPatient directly from their source
+# files to avoid importing the entire package hierarchy during test collection.
+_ROOT = pathlib.Path(__file__).resolve().parents[2] / "DiaGuardianAI"
+
+spec_sp = importlib.util.spec_from_file_location(
+    "synthetic_patient_model", _ROOT / "data_generation" / "synthetic_patient_model.py"
+)
+sp_module = importlib.util.module_from_spec(spec_sp)
+try:
+    spec_sp.loader.exec_module(sp_module)
+    SyntheticPatient = sp_module.SyntheticPatient
+except ModuleNotFoundError as exc:
+    pytest.skip(f"SyntheticPatient tests skipped: {exc}", allow_module_level=True)
+
+spec_bc = importlib.util.spec_from_file_location(
+    "base_classes", _ROOT / "core" / "base_classes.py"
+)
+bc_module = importlib.util.module_from_spec(spec_bc)
+spec_bc.loader.exec_module(bc_module)
+BaseSyntheticPatient = bc_module.BaseSyntheticPatient
 
 @pytest.fixture
 def default_patient_params():

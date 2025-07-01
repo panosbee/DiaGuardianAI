@@ -1,10 +1,19 @@
 # Tests for DiaGuardianAI.data_generation.data_formatter
 
-import pytest
-from DiaGuardianAI.data_generation.data_formatter import DataFormatter
+import importlib.util
+import pathlib
 import numpy as np
 import pandas as pd
+import pytest
 from typing import List
+
+# Import DataFormatter directly from the source file to avoid executing the
+# package's heavy top-level imports during test collection.
+DATA_FORMATTER_PATH = pathlib.Path(__file__).resolve().parents[2] / "DiaGuardianAI" / "data_generation" / "data_formatter.py"
+spec = importlib.util.spec_from_file_location("data_formatter", DATA_FORMATTER_PATH)
+data_formatter_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(data_formatter_module)
+DataFormatter = data_formatter_module.DataFormatter
 
 @pytest.fixture
 def default_formatter_params():
@@ -12,9 +21,15 @@ def default_formatter_params():
         "cgm_time_step_minutes": 5,
         "prediction_horizons_minutes": [30, 60], # Predict 30 and 60 minutes ahead
         "history_window_minutes": 60, # Use 1 hour of history
-        "include_cgm": True,
-        "include_insulin": False, # Keep it simple for initial tests
-        "include_carbs": False
+        "include_cgm_raw": True,
+        "include_insulin_raw": False, # Keep it simple for initial tests
+        "include_carbs_raw": False,
+        "include_cgm_roc": False,
+        "include_cgm_stats": False,
+        "include_cgm_ema": False,
+        "include_iob": False,
+        "include_cob": False,
+        "include_time_features": False
     }
 
 @pytest.fixture
@@ -60,16 +75,15 @@ def test_create_sliding_windows_cgm_only(data_formatter: DataFormatter, sample_c
     assert features.shape[0] == 1
     assert targets.shape[0] == 1
 
-    # Feature shape: (n_samples, history_window_steps, n_feature_types)
-    # n_feature_types = 1 (only CGM)
-    assert features.shape == (1, 12, 1)
+    # Feature shape: flattened (n_samples, history_window_steps * n_feature_types)
+    assert features.shape == (1, 12)
     # Target shape: (n_samples, n_prediction_horizons)
     # n_prediction_horizons = 2 (for 30 and 60 min)
     assert targets.shape == (1, 2)
 
     # Check content of the first (and only) sample
     # History for i=11: cgm_series.iloc[11-12+1 : 11+1] = cgm_series.iloc[0:12]
-    expected_feature_sample = np.array(sample_cgm_data.iloc[0:12].values).reshape(12, 1)
+    expected_feature_sample = np.array(sample_cgm_data.iloc[0:12].values)
     assert np.array_equal(features[0], expected_feature_sample)
 
     # Targets for i=11: cgm_series.iloc[[11+6, 11+12]] = cgm_series.iloc[[17, 23]]
@@ -83,7 +97,7 @@ def test_create_dataset_cgm_only(data_formatter: DataFormatter, sample_cgm_data_
         cgm_data=sample_cgm_data_list,
         timestamps=sample_timestamps_list
     )
-    assert features.shape == (1, 12, 1)
+    assert features.shape == (1, 12)
     assert targets.shape == (1, 2)
     print("test_create_dataset_cgm_only: PASSED")
 
@@ -94,9 +108,15 @@ def test_create_sliding_windows_with_insulin_carbs(sample_cgm_data: pd.Series):
         cgm_time_step_minutes=5,
         prediction_horizons_minutes=[30, 60],
         history_window_minutes=60,
-        include_cgm=True,
-        include_insulin=True,
-        include_carbs=True
+        include_cgm_raw=True,
+        include_insulin_raw=True,
+        include_carbs_raw=True,
+        include_cgm_roc=False,
+        include_cgm_stats=False,
+        include_cgm_ema=False,
+        include_iob=False,
+        include_cob=False,
+        include_time_features=False
     )
     # Create dummy insulin and carb series aligned with sample_cgm_data
     insulin_series = pd.Series(np.random.rand(len(sample_cgm_data)) * 2, index=sample_cgm_data.index) # 0-2 U
@@ -104,26 +124,25 @@ def test_create_sliding_windows_with_insulin_carbs(sample_cgm_data: pd.Series):
 
     features, targets = formatter.create_sliding_windows(
         cgm_series=sample_cgm_data,
-        insulin_series=insulin_series,
+        insulin_bolus_series=insulin_series,
         carb_series=carb_series
     )
     # Expected shapes are the same for samples and targets, but feature depth changes
     assert features.shape[0] == 1
     assert targets.shape[0] == 1
-    # Feature shape: (n_samples, history_window_steps, n_feature_types)
-    # n_feature_types = 3 (CGM, Insulin, Carbs)
-    assert features.shape == (1, 12, 3)
+    # Feature shape is flattened
+    assert features.shape == (1, 36)
     assert targets.shape == (1, 2)
 
     # Check content (first feature type should be CGM)
     expected_cgm_feature = np.array(sample_cgm_data.iloc[0:12].values)
-    assert np.array_equal(features[0, :, 0], expected_cgm_feature)
+    assert np.array_equal(features[0][0::3], expected_cgm_feature)
     # Check insulin feature
     expected_insulin_feature = np.array(insulin_series.iloc[0:12].values)
-    assert np.array_equal(features[0, :, 1], expected_insulin_feature)
+    assert np.array_equal(features[0][1::3], expected_insulin_feature)
     # Check carb feature
     expected_carb_feature = np.array(carb_series.iloc[0:12].values)
-    assert np.array_equal(features[0, :, 2], expected_carb_feature)
+    assert np.array_equal(features[0][2::3], expected_carb_feature)
     print("test_create_sliding_windows_with_insulin_carbs: PASSED")
 
 
@@ -137,17 +156,23 @@ def test_data_formatter_not_enough_data(data_formatter: DataFormatter):
     assert targets.size == 0
     print("test_data_formatter_not_enough_data: PASSED")
 
-def test_data_formatter_normalization_placeholder(data_formatter: DataFormatter, sample_cgm_data_list: list, sample_timestamps_list: list):
-    """Test the placeholder normalization function."""
+def test_data_formatter_normalization(data_formatter: DataFormatter, sample_cgm_data_list: list, sample_timestamps_list: list):
+    """Test the normalization logic using StandardScaler."""
     features, _ = data_formatter.create_dataset(
         cgm_data=sample_cgm_data_list,
         timestamps=sample_timestamps_list
     )
+
     if features.size > 0:
-        normalized_features = data_formatter.normalize_features(features, fit_scaler=True)
-        # Placeholder just prints and returns original, so they should be equal
-        assert np.array_equal(features, normalized_features)
-    print("test_data_formatter_normalization_placeholder: PASSED")
+        normalized_first = data_formatter.normalize_features(features, fit_scaler=True)
+        # With only one sample all values should become zero after scaling
+        assert np.allclose(normalized_first, 0)
+
+        # Using the fitted scaler again should produce the same result
+        normalized_second = data_formatter.normalize_features(features, fit_scaler=False)
+        assert np.array_equal(normalized_first, normalized_second)
+
+    print("test_data_formatter_normalization: PASSED")
 
 # Future tests:
 # - Test with different history_window_minutes and prediction_horizons_minutes
