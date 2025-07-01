@@ -2,7 +2,15 @@
 
 import pytest
 import numpy as np
-from DiaGuardianAI.utils import metrics # Import the whole module to test its functions
+import importlib.util
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location(
+    "metrics",
+    Path(__file__).resolve().parents[2] / "DiaGuardianAI" / "utils" / "metrics.py",
+)
+metrics = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(metrics)
 
 def test_calculate_mard():
     """Test MARD calculation."""
@@ -68,34 +76,33 @@ def test_calculate_time_above_range():
     assert metrics.calculate_time_above_range(np.array([])) == 0.0
     print("test_calculate_time_above_range: PASSED")
 
-def test_clarke_error_grid_analysis_placeholder():
-    """Test the placeholder CEGA function. Focus on Zone A for simplicity."""
-    # Perfect match should be all in Zone A
+def test_clarke_error_grid_analysis():
+    """Verify CEGA zone assignment with a variety of points."""
+
+    # Perfect match should yield 100% zone A
     y_true_perfect = np.array([70, 100, 180, 250, 60])
     y_pred_perfect = np.array([70, 100, 180, 250, 60])
     zones_perfect = metrics.clarke_error_grid_analysis(y_true_perfect, y_pred_perfect)
     assert zones_perfect["A"] == pytest.approx(100.0)
-    assert zones_perfect["B"] == pytest.approx(0.0) # Based on simplified logic
-    assert zones_perfect["Other"] == pytest.approx(0.0) # Based on simplified logic
 
-    # Values slightly off but within 20% for Zone A (for values >= 70)
-    y_true_A = np.array([100, 200])
-    y_pred_A = np.array([110, 180]) # 10% off, 10% off
-    zones_A = metrics.clarke_error_grid_analysis(y_true_A, y_pred_A)
-    assert zones_A["A"] == pytest.approx(100.0)
+    # Mixed set that exercises each zone
+    y_true = np.array([100, 50, 150, 250, 60, 50])
+    y_pred = np.array([110, 90, 50, 150, 250, 55])
+    zones = metrics.clarke_error_grid_analysis(y_true, y_pred)
 
-    # Both < 70 for Zone A
-    y_true_A_low = np.array([50, 60])
-    y_pred_A_low = np.array([55, 65])
-    zones_A_low = metrics.clarke_error_grid_analysis(y_true_A_low, y_pred_A_low)
-    assert zones_A_low["A"] == pytest.approx(100.0)
-    
-    # Test empty
+    assert zones["A"] == pytest.approx(33.3333, rel=1e-3)
+    assert zones["B"] == pytest.approx(16.6666, rel=1e-3)
+    assert zones["C"] == pytest.approx(16.6666, rel=1e-3)
+    assert zones["D"] == pytest.approx(16.6666, rel=1e-3)
+    assert zones["E"] == pytest.approx(16.6666, rel=1e-3)
+
+    # Empty input
     assert metrics.clarke_error_grid_analysis(np.array([]), np.array([]))["A"] == 0.0
 
     with pytest.raises(ValueError):
-        metrics.clarke_error_grid_analysis(np.array([1,2]), np.array([1]))
-    print("test_clarke_error_grid_analysis_placeholder: PASSED (simplified checks)")
+        metrics.clarke_error_grid_analysis(np.array([1, 2]), np.array([1]))
+
+    print("test_clarke_error_grid_analysis: PASSED")
 
 
 def test_calculate_lbgi_hbgi():

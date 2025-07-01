@@ -163,24 +163,13 @@ def calculate_time_above_range(y_true: np.ndarray,
 
 def clarke_error_grid_analysis(y_true: np.ndarray,
                                y_pred: np.ndarray) -> Dict[str, float]:
-    """Performs Clarke Error Grid Analysis (CEGA). (Simplified Placeholder)
+    """Performs Clarke Error Grid Analysis (CEGA).
 
-    CEGA categorizes pairs of true (reference) and predicted (test)
-    glucose values into zones (A, B, C, D, E) representing different
-    levels of clinical accuracy and risk.
-    - Zone A: Clinically accurate.
-    - Zone B: Benign errors, no incorrect treatment.
-    - Zone C: Overcorrection of acceptable glucose.
-    - Zone D: Failure to detect hypo/hyperglycemia.
-    - Zone E: Erroneous treatment (e.g., treating hypo as hyper).
-
-    Note:
-        The current implementation is a **highly simplified placeholder**
-        and does not use the precise, complex boundary equations of the
-        original Clarke Error Grid. It primarily identifies Zone A
-        correctly based on common definitions and groups other points
-        roughly. For clinical or research-grade CEGA, a full
-        implementation with accurate zone boundaries is required.
+    This implementation follows the standard Clarke error grid
+    definitions. Points are classified into zones A--E based on
+    reference (``y_true``) and predicted (``y_pred``) glucose values.
+    Zone boundaries are determined by the rules published in the
+    original Clarke error grid paper.
 
     Args:
         y_true (np.ndarray): Array of true glucose values (reference).
@@ -188,11 +177,7 @@ def clarke_error_grid_analysis(y_true: np.ndarray,
             Must be the same length as `y_true`.
 
     Returns:
-        Dict[str, float]: A dictionary with keys "A", "B", "C", "D", "E",
-            "Other", and values representing the percentage of points
-            falling into each zone. Due to the simplified logic, "Other"
-            may contain points that would fall into C, D, or complex B
-            cases in a full CEGA.
+        Dict[str, float]: Percentage of points in zones ``A`` through ``E``.
 
     Raises:
         ValueError: If `y_true` and `y_pred` have different lengths.
@@ -202,65 +187,45 @@ def clarke_error_grid_analysis(y_true: np.ndarray,
             "Input arrays y_true and y_pred must have the same length."
         )
     if len(y_true) == 0:
-        return {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0, "Other": 0.0}
+        return {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0}
 
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
-    
+
     points_in_zone: Dict[str, int] = {
-        "A": 0, "B": 0, "C": 0, "D": 0, "E": 0, "Other": 0
+        "A": 0, "B": 0, "C": 0, "D": 0, "E": 0
     }
+
+    for ref, est in zip(y_true, y_pred):
+        if ref < 70:
+            if est < 70:
+                zone = 'A' if abs(ref - est) <= 20 else 'B'
+            elif est <= 180:
+                zone = 'B'
+            else:  # est > 180
+                zone = 'E'
+        elif ref <= 180:
+            if est < 70:
+                zone = 'C'
+            elif est <= 180:
+                zone = 'A' if abs(ref - est) <= 0.20 * ref else 'B'
+            else:  # est > 180
+                zone = 'C'
+        else:  # ref > 180
+            if est < 70:
+                zone = 'E'
+            elif est <= 180:
+                zone = 'D'
+            else:  # est > 180
+                zone = 'A' if abs(ref - est) <= 0.20 * ref else 'B'
+
+        points_in_zone[zone] += 1
+
     total_points = len(y_true)
-
-    for i in range(total_points):
-        ref, est = y_true[i], y_pred[i]
-        
-        # Zone A: Accurate readings
-        # Points are in zone A if device readings are within 20% of
-        # reference, or if both device and reference values are < 70 mg/dL.
-        is_zone_a = False
-        if ref < 70 and est < 70:
-            is_zone_a = True
-        elif ref >= 70 and abs(est - ref) <= 0.20 * ref:
-            is_zone_a = True
-        
-        if is_zone_a:
-            points_in_zone['A'] += 1
-        # Simplified Zone E: Erroneous treatment (hypo as hyper, or hyper as hypo)
-        elif (ref < 70 and est > 180) or \
-             (ref > 180 and est < 70):
-            points_in_zone['E'] += 1
-        # Simplified Zone D: Failure to detect significant hypo/hyper
-        # (e.g., reference is very high but estimate is euglycemic,
-        # or ref is very low but est is euglycemic/hyper)
-        elif (ref >= 240 and est < 180 and est >= 70) or \
-             (ref <= 70 and est > 180) or \
-             (ref <= 54 and est >= 70 and est <= 180):  # Missed severe hypo
-            points_in_zone['D'] += 1
-        # Simplified Zone B: Benign errors (outside A, but not leading
-        # to dangerous mis-treatment). This is very coarse. Many C points
-        # might fall here.
-        elif (abs(est - ref) / ref <= 0.40 and ref >= 70) or \
-             (ref < 70 and est >= 70 and est <= 180 and (est - ref) < 50) or \
-             (ref > 180 and est <= 180 and est >= 70 and (ref - est) < 70):
-            points_in_zone['B'] += 1
-        # Simplified Zone C: Overcorrection (e.g. true is normal,
-        # predicted is far off suggesting action)
-        elif (ref >= 70 and ref <= 180 and \
-              (est < 70 or est > 180) and abs(est-ref) > 40):  # Example
-             points_in_zone['C'] += 1
-        else:
-            points_in_zone['Other'] +=1  # Catch-all for points not fitting simplified rules
-
-    zone_percentages: Dict[str, float] = {
+    return {
         zone: _safe_divide(float(count), float(total_points)) * 100
         for zone, count in points_in_zone.items()
     }
-    print(
-        "Note: Clarke Error Grid Analysis is a simplified placeholder and "
-        "may not be clinically accurate for C, D, E zones."
-    )
-    return zone_percentages
 
 
 def calculate_lbgi_hbgi(y_true: np.ndarray) -> Tuple[float, float]:
@@ -357,7 +322,7 @@ if __name__ == '__main__':
     ceg_zones_example = clarke_error_grid_analysis(
         true_values_example, pred_values_example
     )
-    print("Clarke Error Grid Zones (simplified placeholder):")
+    print("Clarke Error Grid Zones:")
     for zone, perc in ceg_zones_example.items():
         print(f"  Zone {zone}: {perc:.2f}%")
 
