@@ -1,71 +1,70 @@
-# Tests for DiaGuardianAI.predictive_models.model_zoo.lstm_predictor
-
+import numpy as np
+import pandas as pd
 import pytest
+import sys
+import types
+
+sys.modules.setdefault("optuna", types.ModuleType("optuna"))
+
 from DiaGuardianAI.predictive_models.model_zoo.lstm_predictor import LSTMPredictor
 from DiaGuardianAI.core.base_classes import BasePredictiveModel
-import numpy as np # For creating dummy data
+
+
+def _create_dummy_df(rows: int) -> pd.DataFrame:
+    return pd.DataFrame({
+        "cgm_mg_dl": np.random.rand(rows).astype(np.float32) * 100 + 80,
+        "bolus_U": np.random.rand(rows).astype(np.float32),
+        "carbs_g": np.random.rand(rows).astype(np.float32) * 10,
+    })
+
 
 @pytest.fixture
-def lstm_predictor_instance():
-    # Default parameters for a simple test instance
-    return LSTMPredictor(input_dim=3, hidden_dim=32, num_layers=1, output_horizon_steps=6, dropout_prob=0.1)
+def lstm_predictor_instance() -> LSTMPredictor:
+    return LSTMPredictor(input_seq_len=4, output_seq_len=2, n_features=3,
+                         hidden_units=8, num_layers=1, dropout_rate=0.1,
+                         learning_rate=0.01)
+
 
 def test_lstm_predictor_initialization(lstm_predictor_instance: LSTMPredictor):
-    """Test if LSTMPredictor initializes correctly."""
     assert isinstance(lstm_predictor_instance, BasePredictiveModel)
-    assert lstm_predictor_instance.input_dim == 3
-    assert lstm_predictor_instance.hidden_dim == 32
-    assert lstm_predictor_instance.num_layers == 1
-    assert lstm_predictor_instance.output_horizon_steps == 6
-    assert lstm_predictor_instance.dropout_prob == 0.1
-    # Add checks for internal model components if they were not placeholders (e.g., self.lstm, self.fc)
-    print("test_lstm_predictor_initialization: PASSED")
+    assert lstm_predictor_instance.input_seq_len == 4
+    assert lstm_predictor_instance.output_seq_len == 2
+    assert lstm_predictor_instance.n_features == 3
+    assert lstm_predictor_instance.hidden_units == 8
 
-def test_lstm_predictor_train_placeholder(lstm_predictor_instance: LSTMPredictor, capsys):
-    """Test the placeholder train method."""
-    # Dummy data: 10 samples, sequence length 12, 3 features
-    dummy_X_train = np.random.rand(10, 12, 3)
-    # 10 samples, 6 prediction steps
-    dummy_y_train = np.random.rand(10, 6)
-    
-    lstm_predictor_instance.train(dummy_X_train, dummy_y_train)
+
+def test_lstm_predictor_training_with_validation(lstm_predictor_instance: LSTMPredictor, capsys):
+    train_df = _create_dummy_df(30)
+    val_df = _create_dummy_df(30)
+
+    lstm_predictor_instance.train(data=[train_df], epochs=1, batch_size=8, validation_data=[val_df])
     captured = capsys.readouterr()
-    assert "Placeholder: Training LSTMPredictor" in captured.out
-    print("test_lstm_predictor_train_placeholder: PASSED")
+    assert "Train Loss" in captured.out
+    assert "Val Loss" in captured.out
+    assert lstm_predictor_instance.is_trained
 
-def test_lstm_predictor_predict_placeholder(lstm_predictor_instance: LSTMPredictor, capsys):
-    """Test the placeholder predict method."""
-    # Dummy data: 1 sample, sequence length 12, 3 features
-    dummy_X_current_state = np.random.rand(1, 12, 3)
-    
-    predictions = lstm_predictor_instance.predict(dummy_X_current_state)
-    captured = capsys.readouterr()
-    
-    assert "Placeholder: LSTMPredictor predicting" in captured.out
-    assert isinstance(predictions, list)
-    # The placeholder predict returns a list of length output_horizon_steps
-    assert len(predictions) == lstm_predictor_instance.output_horizon_steps
-    assert all(isinstance(p, float) for p in predictions) # Placeholder returns floats
-    print("test_lstm_predictor_predict_placeholder: PASSED")
 
-def test_lstm_predictor_save_load_placeholders(lstm_predictor_instance: LSTMPredictor, tmp_path, capsys):
-    """Test the placeholder save and load methods."""
-    model_file = tmp_path / "test_lstm_model.pth"
-    
-    lstm_predictor_instance.save(str(model_file))
-    captured_save = capsys.readouterr()
-    assert f"Placeholder: Saving LSTMPredictor model to {model_file}" in captured_save.out
-    
-    # Create a new instance to load into, or ensure load reinitializes
-    # For placeholder, just call load on the same instance
-    lstm_predictor_instance.load(str(model_file))
-    captured_load = capsys.readouterr()
-    assert f"Placeholder: Loading LSTMPredictor model from {model_file}" in captured_load.out
-    print("test_lstm_predictor_save_load_placeholders: PASSED")
+def test_lstm_predictor_predict(lstm_predictor_instance: LSTMPredictor):
+    train_df = _create_dummy_df(30)
+    lstm_predictor_instance.train(data=[train_df], epochs=1, batch_size=8)
 
-# Future tests (when implementation is concrete):
-# - Test model output shapes precisely after training/prediction with real framework.
-# - Test actual learning (e.g., loss decreases) with a simple dataset.
-# - Test inference speed.
-# - Test handling of different input shapes (batch vs. single instance).
-# - Test model persistence (saving and loading actual model weights).
+    input_df = _create_dummy_df(4)
+    preds = lstm_predictor_instance.predict(input_df)
+    assert "mean" in preds
+    assert len(preds["mean"]) == lstm_predictor_instance.output_seq_len
+
+
+def test_lstm_predictor_save_load(tmp_path):
+    model_dir = tmp_path / "lstm_model"
+    model_dir.mkdir()
+
+    train_df = _create_dummy_df(30)
+    predictor = LSTMPredictor(input_seq_len=4, output_seq_len=2, n_features=3,
+                              hidden_units=8, num_layers=1, dropout_rate=0.1,
+                              learning_rate=0.01)
+    predictor.train(data=[train_df], epochs=1, batch_size=8)
+    predictor.save(str(model_dir))
+
+    new_predictor = LSTMPredictor()
+    new_predictor.load(str(model_dir))
+    assert new_predictor.is_trained
