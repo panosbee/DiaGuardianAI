@@ -51,14 +51,26 @@ class TrendBasisLayer(nn.Module):
         return trend
 
 class SeasonalityBasisLayer(nn.Module):
+    """Seasonality basis using Fourier terms.
+
+    Parameters
+    ----------
+    num_fourier_terms : int
+        Number of Fourier harmonics to generate.
+    out_features : int
+        Length of the generated sequence.
+    period_scaling : float, optional
+        Factor to scale the base period. ``period_scaling=2`` doubles the
+        period of the fundamental harmonic, effectively dividing the
+        frequency by two. Default is ``1.0`` which keeps the standard
+        period tied to ``out_features``.
+    """
+
     def __init__(self, num_fourier_terms: int, out_features: int, period_scaling: float = 1.0):
         super().__init__()
         self.num_fourier_terms = num_fourier_terms
         self.out_features = out_features
-        # period_scaling can be used if we want to scale the "fundamental" period for Fourier terms
-        # For example, if out_features is daily steps, period_scaling=7 could aim for weekly.
-        # For now, let's assume the Fourier terms are relative to the out_features length.
-        self.period_scaling = period_scaling # Not used yet, but placeholder
+        self.period_scaling = period_scaling
 
         # Coefficients for cos_1, sin_1, cos_2, sin_2, ...
         if num_fourier_terms <= 0:
@@ -84,7 +96,7 @@ class SeasonalityBasisLayer(nn.Module):
             # or lookback P for backcast seasonality.
             # So, 2*pi*k*t_h/H where t_h = 0,1,...,H-1.
             # Our t is already 0..1, so effectively t_h/H.
-            angle = 2 * math.pi * k * t
+            angle = 2 * math.pi * k * t / self.period_scaling
             
             seasonality_components.append(cos_coeff * torch.cos(angle))
             seasonality_components.append(sin_coeff * torch.sin(angle))
@@ -153,7 +165,9 @@ class PyTorchNBEATSModel(nn.Module):
     """
     The N-BEATS model architecture.
     It consists of multiple stacks, each containing multiple blocks.
-    Supports generic, trend, and seasonality stacks.
+    Supports generic, trend, and seasonality stacks. The ``period_scaling``
+    argument controls the base period of seasonality stacks, allowing the
+    Fourier basis to model longer or shorter seasonal cycles.
     """
     def __init__(self,
                  input_chunk_length: int,
@@ -164,6 +178,7 @@ class PyTorchNBEATSModel(nn.Module):
                  hidden_layer_units: Union[int, List[int]],
                  trend_polynomial_degree: int = 2, # Default for trend stacks
                  seasonality_fourier_terms: int = 5, # Default for seasonality stacks
+                 period_scaling: float = 1.0,
                  generic_theta_dims: int = 256, # Default for generic stacks
                  share_weights_in_stack: bool = False,
                  dropout_prob: float = 0.0):
@@ -172,6 +187,7 @@ class PyTorchNBEATSModel(nn.Module):
         self.output_chunk_length = output_chunk_length
         self.num_stacks = len(stack_types)
         self.stack_types = stack_types
+        self.period_scaling = period_scaling
 
         # Helper to get per-stack config or use default
         def _get_stack_config(param_name: str, param_value: Union[int, List[int]], stack_idx: int, default_val_if_int: int):
@@ -204,8 +220,20 @@ class PyTorchNBEATSModel(nn.Module):
                 if seasonality_fourier_terms <= 0: # Ensure positive for layer
                      raise ValueError("seasonality_fourier_terms must be positive for seasonality stack type.")
                 theta_dim = 2 * seasonality_fourier_terms
-                self.forecast_basis_layers.append(SeasonalityBasisLayer(num_fourier_terms=seasonality_fourier_terms, out_features=output_chunk_length))
-                self.backcast_basis_layers.append(SeasonalityBasisLayer(num_fourier_terms=seasonality_fourier_terms, out_features=input_chunk_length))
+                self.forecast_basis_layers.append(
+                    SeasonalityBasisLayer(
+                        num_fourier_terms=seasonality_fourier_terms,
+                        out_features=output_chunk_length,
+                        period_scaling=self.period_scaling,
+                    )
+                )
+                self.backcast_basis_layers.append(
+                    SeasonalityBasisLayer(
+                        num_fourier_terms=seasonality_fourier_terms,
+                        out_features=input_chunk_length,
+                        period_scaling=self.period_scaling,
+                    )
+                )
                 theta_b_dim_for_stack = theta_f_dim_for_stack = theta_dim
             elif stack_type == 'generic':
                 self.forecast_basis_layers.append(GenericBasisLayer(in_features=generic_theta_dims, out_features=output_chunk_length))
@@ -283,7 +311,10 @@ class PyTorchNBEATSModel(nn.Module):
 
 class NBEATSPredictor(BasePredictiveModel):
     """
-    Wrapper for the PyTorchNBEATSModel, conforming to BasePredictiveModel interface.
+    Wrapper for the :class:`PyTorchNBEATSModel`, conforming to
+    :class:`BasePredictiveModel` interface. The ``period_scaling`` parameter
+    allows tuning of the seasonality frequency when seasonality stacks are
+    present.
     """
     def __init__(self,
                  input_chunk_length: int,
@@ -294,6 +325,7 @@ class NBEATSPredictor(BasePredictiveModel):
                  hidden_layer_units: Union[int, List[int]] = 256,
                  trend_polynomial_degree: int = 2,
                  seasonality_fourier_terms: int = 5,
+                 period_scaling: float = 1.0,
                  generic_theta_dims: int = 256,
                  share_weights_in_stack: bool = False,
                  dropout_prob: float = 0.1,
@@ -309,6 +341,7 @@ class NBEATSPredictor(BasePredictiveModel):
         self.hidden_layer_units_config = hidden_layer_units
         self.trend_polynomial_degree_config = trend_polynomial_degree
         self.seasonality_fourier_terms_config = seasonality_fourier_terms
+        self.period_scaling_config = period_scaling
         self.generic_theta_dims_config = generic_theta_dims
         self.share_weights_in_stack_config = share_weights_in_stack
         self.dropout_prob_config = dropout_prob
@@ -327,6 +360,7 @@ class NBEATSPredictor(BasePredictiveModel):
             hidden_layer_units=self.hidden_layer_units_config,
             trend_polynomial_degree=self.trend_polynomial_degree_config,
             seasonality_fourier_terms=self.seasonality_fourier_terms_config,
+            period_scaling=self.period_scaling_config,
             generic_theta_dims=self.generic_theta_dims_config,
             share_weights_in_stack=self.share_weights_in_stack_config,
             dropout_prob=self.dropout_prob_config
