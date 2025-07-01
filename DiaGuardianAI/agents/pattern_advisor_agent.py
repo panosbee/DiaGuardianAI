@@ -35,7 +35,6 @@ from sklearn.neural_network import MLPRegressor  # Added for regression
 from sklearn.ensemble import GradientBoostingRegressor  # Added for regression
 from sklearn.preprocessing import LabelEncoder  # Added import
 import joblib  # For saving/loading sklearn models
-import json  # For saving/loading metadata
 
 _T_PatternAdvisorAgent = TypeVar("_T_PatternAdvisorAgent", bound="PatternAdvisorAgent")
 
