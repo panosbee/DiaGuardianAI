@@ -111,10 +111,12 @@ class DataFormatter:
         self.include_cob: bool = include_cob
         self.include_time_features: bool = include_time_features
 
-        # Initialize scalers for optional feature normalization
-        self.scaler_cgm = StandardScaler()
-        self.scaler_insulin = StandardScaler()
-        self.scaler_carbs = StandardScaler()
+        # Initialize scaler for optional feature normalization
+        # A single scaler is used for the complete feature vector of each sample
+        # rather than per-signal scalers. The fitted scaler is stored so that
+        # it can be reused when `normalize_features` is called with
+        # ``fit_scaler=False``.
+        self.feature_scaler = StandardScaler()
         print(
             f"DataFormatter initialized: History steps={self.history_window_steps}, "
             f"Prediction steps={self.prediction_horizons_steps}"
@@ -295,31 +297,48 @@ class DataFormatter:
 
         return np.array(features_list), np.array(targets_list)
 
-    def normalize_features(self, features, fit_scaler=False):
+    def normalize_features(self, features: np.ndarray, fit_scaler: bool = False) -> np.ndarray:
+        """Normalize features using :class:`~sklearn.preprocessing.StandardScaler`.
+
+        The scaler is fitted when ``fit_scaler`` is ``True`` and stored for
+        subsequent calls. When ``fit_scaler`` is ``False`` the previously fitted
+        scaler is used. If the scaler has not been fitted yet and
+        ``fit_scaler`` is ``False`` a ``ValueError`` is raised.
+
+        Parameters
+        ----------
+        features : np.ndarray
+            Feature array of shape ``(n_samples, n_features)`` or
+            ``(n_samples, n_timesteps, n_features)``.
+        fit_scaler : bool, default=False
+            Whether to fit the scaler on the provided features.
+
+        Returns
+        -------
+        np.ndarray
+            Normalized features with the same shape as the input.
         """
-        Normalizes/Standardizes features.
-        (Placeholder - actual implementation would use scikit-learn scalers)
-        Args:
-            features (np.ndarray): Feature array.
-            fit_scaler (bool): If true, fit the scaler. Otherwise, use existing.
-        Returns:
-            np.ndarray: Normalized features.
-        """
-        # Example:
-        # if features.ndim == 3: # (n_samples, n_timesteps, n_features)
-        #     # Reshape for scaler, scale, then reshape back
-        #     original_shape = features.shape
-        #     reshaped_features = features.reshape(-1, original_shape[-1])
-        #     if fit_scaler:
-        #         self.scaler_cgm.fit(reshaped_features) # Assuming first feature is CGM for this example
-        #     scaled_features = self.scaler_cgm.transform(reshaped_features)
-        #     return scaled_features.reshape(original_shape)
-        # elif features.ndim == 2: # (n_samples, n_features)
-        #     if fit_scaler:
-        #         self.scaler_cgm.fit(features)
-        #     return self.scaler_cgm.transform(features)
-        print("Feature normalization placeholder.")
-        return features
+
+        if features.size == 0:
+            return features
+
+        if features.ndim == 3:
+            original_shape = features.shape
+            features_2d = features.reshape(original_shape[0], -1)
+        else:
+            original_shape = None
+            features_2d = features
+
+        if fit_scaler:
+            self.feature_scaler.fit(features_2d)
+        elif not hasattr(self.feature_scaler, "scale_"):
+            raise ValueError("Scaler has not been fitted. Call with fit_scaler=True first.")
+
+        scaled = self.feature_scaler.transform(features_2d)
+
+        if original_shape is not None:
+            return scaled.reshape(original_shape)
+        return scaled
 
     def create_dataset(
         self,
