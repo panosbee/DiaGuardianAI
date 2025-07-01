@@ -184,6 +184,8 @@ The framework includes implementations of state-of-the-art architectures adapted
 - **Design**: Neural Basis Expansion Analysis for Time Series
 - **Components**: Trend, seasonality, and generic stacks
 - **Strength**: Interpretable decomposition of glucose patterns
+- **Tunable Seasonality**: `period_scaling` controls the base frequency of
+  seasonality stacks
 
 #### 4.1.4 TSMixer Architecture
 - **Approach**: All-MLP architecture for time series forecasting
