@@ -112,15 +112,14 @@ class EnsemblePredictor(BasePredictiveModel):
             y_train (Any): Training targets.
         """
         print(f"EnsemblePredictor train called for strategy '{self.strategy}'.")
-        # Sub-models are generally expected to be pre-trained or trained externally
-        # before being passed to the EnsemblePredictor.
-        # This method could be extended to facilitate re-training or fine-tuning.
-        # for i, model in enumerate(self.models):
-        #     print(
-        #         f"Ensuring sub-model {i+1}/{len(self.models)} "
-        #         f"({model.__class__.__name__}) is trained..."
-        #     )
-        #     # model.train(X_train, y_train)  # This line would re-train. Use with caution.
+        # Train each sub-model if it provides a ``train`` method
+        for i, model in enumerate(self.models):
+            if hasattr(model, "train"):
+                print(
+                    f"Training sub-model {i+1}/{len(self.models)} "
+                    f"({model.__class__.__name__})..."
+                )
+                model.train(X_train, y_train)
 
         if self.strategy == "stacking" and self.meta_learner is not None:
             print("Training meta-learner for stacking strategy...")
@@ -132,8 +131,7 @@ class EnsemblePredictor(BasePredictiveModel):
             if base_preds:
                 meta_features = np.stack(base_preds, axis=1)
                 self.meta_learner.fit(meta_features, y_train)
-        print("EnsemblePredictor training placeholder complete.")
-        print("EnsemblePredictor training placeholder complete.")
+        print("EnsemblePredictor training complete.")
 
     def predict(self, X_current_state: Any) -> Dict[str, List[float]]:
         """Makes predictions by combining outputs from all sub-models.
