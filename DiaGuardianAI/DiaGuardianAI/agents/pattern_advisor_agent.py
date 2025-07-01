@@ -169,7 +169,8 @@ class PatternAdvisorAgent(BaseAgent):    def __init__(self, state_dim: int,
             self.is_trained = True
             print(f"PatternAdvisorAgent: Classifier training complete. Found classes: {self.label_encoder.classes_}")
         else:
-            print(f"PatternAdvisorAgent: Training logic not implemented for {self.learning_model_type}")
+            print(f"PatternAdvisorAgent: Training not applicable for model type '{self.learning_model_type}'.")
+            return
         print(f"PatternAdvisorAgent: Model is_trained set to {self.is_trained}")
 
     def predict(self, state_features: Any) -> Dict[str, float]:
