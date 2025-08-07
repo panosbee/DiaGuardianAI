@@ -1,3 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # Core dependencies
 numpy>=1.24.0
 pandas>=2.0.0
@@ -14,6 +16,7 @@ joblib>=1.3.0
 tqdm>=4.65.0
 
 # Optional: For advanced features
+gymnasium>=0.29.0  # For simulation environments
 # streamlit>=1.28.0  # For clinical demo
 # plotly>=5.15.0     # For visualizations
 # dash>=2.14.0       # For web interface

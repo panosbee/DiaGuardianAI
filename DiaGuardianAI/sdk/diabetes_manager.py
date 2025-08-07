@@ -20,15 +20,10 @@ class DiabetesManager:
     """
     Main DiaGuardianAI SDK interface for diabetes management.
     
-    This class provides a high-level API for integrating ONE IN A BILLION
-    diabetes management capabilities into medical applications.
-    
-    Features:
-    - Patient management and profiling
-    - Real-time insulin recommendations
-    - Safety monitoring and alerts
-    - Performance tracking and analytics
-    - Clinical-grade glucose control
+    This class provides a high-level API for integrating the advanced
+    AI-driven diabetes management capabilities into applications. It orchestrates
+    patient management, safety monitoring, and the powerful multi-agent
+    system for intelligent insulin recommendations.
     
     Example:
         dm = DiabetesManager()
@@ -43,7 +38,7 @@ class DiabetesManager:
             basal_rate=1.2
         )
         
-        # Get insulin recommendation
+        # Get an AI-driven insulin recommendation
         recommendation = dm.get_insulin_recommendation(
             patient_id=patient_id,
             current_glucose=120,
@@ -63,6 +58,7 @@ class DiabetesManager:
         
         # Initialize core components
         self.patient_manager = PatientManager()
+        # The InsulinAdvisor now contains the full AI decision-making system.
         self.insulin_advisor = InsulinAdvisor(config=self.config)
         self.safety_monitor = SafetyMonitor(config=self.config)
         
@@ -98,25 +94,13 @@ class DiabetesManager:
             
         Returns:
             str: Unique patient identifier
-            
-        Example:
-            patient_id = dm.add_patient(
-                diabetes_type="type_1",
-                age=35,
-                weight_kg=70,
-                isf=50,
-                cr=10,
-                basal_rate=1.2
-            )
         """
         if patient_id is None:
             patient_id = str(uuid.uuid4())
         
-        # Convert string to enum if needed
         if isinstance(diabetes_type, str):
             diabetes_type = DiabetesType(diabetes_type)
         
-        # Create patient profile
         profile = PatientProfile(
             patient_id=patient_id,
             diabetes_type=diabetes_type,
@@ -128,10 +112,7 @@ class DiabetesManager:
             **kwargs
         )
         
-        # Add to patient manager
         self.patient_manager.add_patient(profile)
-        
-        # Initialize safety monitoring
         self.safety_monitor.add_patient(patient_id)
         
         self.logger.info(f"Added patient {patient_id} ({diabetes_type.value})")
@@ -146,7 +127,11 @@ class DiabetesManager:
         timestamp: Optional[datetime] = None
     ) -> InsulinRecommendation:
         """
-        Get intelligent insulin delivery recommendation.
+        Get an AI-driven insulin delivery recommendation.
+
+        This method queries the underlying multi-agent system, which uses
+        advanced glucose prediction and a continuous learning loop to determine
+        the optimal insulin dose.
         
         Args:
             patient_id: Patient identifier
@@ -156,40 +141,26 @@ class DiabetesManager:
             timestamp: Optional timestamp (defaults to now)
             
         Returns:
-            InsulinRecommendation: Complete insulin delivery recommendation
-            
-        Example:
-            recommendation = dm.get_insulin_recommendation(
-                patient_id="patient_123",
-                current_glucose=120,
-                meal_carbs=45,
-                current_iob=1.5
-            )
-            
-            print(f"Bolus: {recommendation.bolus_amount_u:.1f} units")
-            print(f"Basal: {recommendation.basal_rate_u_hr:.2f} U/hr")
+            InsulinRecommendation: The complete, AI-generated insulin recommendation.
         """
         if timestamp is None:
             timestamp = datetime.now()
         
-        # Get patient profile
         profile = self.patient_manager.get_patient(patient_id)
         if not profile:
             raise ValueError(f"Patient {patient_id} not found")
         
-        # Create glucose reading
         glucose_reading = GlucoseReading(
             patient_id=patient_id,
             glucose_mg_dl=current_glucose,
             timestamp=timestamp
         )
         
-        # Check safety first
         safety_alert = self.safety_monitor.check_safety(
             patient_id, glucose_reading, current_iob
         )
         
-        # Get insulin recommendation
+        # Delegate the core decision to the AI-powered InsulinAdvisor
         recommendation = self.insulin_advisor.get_recommendation(
             profile=profile,
             glucose_reading=glucose_reading,
@@ -198,7 +169,6 @@ class DiabetesManager:
             safety_alert=safety_alert
         )
         
-        # Log the recommendation
         self.logger.info(
             f"Insulin recommendation for {patient_id}: "
             f"Bolus {recommendation.bolus_amount_u:.1f}U, "
@@ -236,10 +206,7 @@ class DiabetesManager:
             source=source
         )
         
-        # Store reading
         self.patient_manager.add_glucose_reading(glucose_reading)
-        
-        # Check safety
         safety_alert = self.safety_monitor.check_safety(patient_id, glucose_reading)
         
         return safety_alert
@@ -273,7 +240,6 @@ class DiabetesManager:
             **kwargs
         )
         
-        # Store meal event
         meal_id = self.patient_manager.add_meal_event(meal_event)
         
         self.logger.info(f"Recorded meal for {patient_id}: {carbs_grams}g carbs")
@@ -326,28 +292,20 @@ class DiabetesManager:
         """
         return self.safety_monitor.get_recent_alerts(patient_id, hours)
     
-    def is_one_in_billion_achieved(self, patient_id: str, days: int = 7) -> bool:
-        """
-        Check if ONE IN A BILLION performance is achieved.
-        
-        Args:
-            patient_id: Patient identifier
-            days: Number of days to analyze
-            
-        Returns:
-            bool: True if ONE IN A BILLION criteria met
-        """
-        metrics = self.get_performance_metrics(patient_id, days)
-        return metrics.one_in_billion_achieved
-    
     def get_system_status(self) -> Dict:
         """Get overall system status and health."""
         uptime = datetime.now() - self.start_time
         
-        return {
+        status = {
             "is_operational": self.is_initialized,
             "uptime_hours": uptime.total_seconds() / 3600,
             "total_patients": len(self.get_patient_list()),
-            "sdk_version": "1.0.0",
+            "sdk_version": "1.1.0", # Version bump to reflect significant changes
             "last_update": datetime.now().isoformat()
         }
+
+        # Add AI system status if available
+        if self.insulin_advisor and self.insulin_advisor.decision_system:
+            status['ai_system_status'] = self.insulin_advisor.decision_system.get_complete_system_status()
+
+        return status

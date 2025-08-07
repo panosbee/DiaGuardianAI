@@ -118,9 +118,8 @@ class InsulinRecommendation:
     confidence: float = 1.0
     
     # Predictions
-    predicted_glucose_30min: Optional[float] = None
-    predicted_glucose_60min: Optional[float] = None
-    
+    predicted_glucose_horizons: Optional[Dict[int, float]] = None
+
     # Context
     current_glucose: Optional[float] = None
     current_iob: Optional[float] = None
